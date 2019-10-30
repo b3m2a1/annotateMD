@@ -39,5 +39,4 @@ lib/*.js
 test/*.js
 *.map
 
-
 .idea/*
