@@ -20,11 +20,11 @@ namespace AnnotateMD {
     }
 
     class PatternMatch {
-        nodes: Array<HTMLElement | ChildNode | PatternMatch>;
+        nodes: Array<Element | Node | PatternMatch>;
         complete: boolean;
         parent: Pattern;
 
-        constructor(parent: Pattern, nodes: Array<HTMLElement | ChildNode | PatternMatch> = []) {
+        constructor(parent: Pattern, nodes: Array<Element | Node | PatternMatch> = []) {
             this.parent = parent;
             this.nodes = nodes;
             this.complete = false;
@@ -34,7 +34,7 @@ namespace AnnotateMD {
             return this.nodes.length > 0 && this.complete == false;
         }
 
-        push(node: HTMLElement | ChildNode | PatternMatch) {
+        push(node: Element | Node | PatternMatch) {
             this.nodes.push(node);
         }
 
@@ -42,14 +42,19 @@ namespace AnnotateMD {
             this.complete = true;
         }
 
+        apply() {
+            this.parent.apply(this);
+        }
+
     }
 
     /**
      * Define a really general Pattern class that we'll use for our incremental DOM matching procedure
      *
+     *  I currently don't actually support anything _other_ than open_ended but that'll come some day
      */
     class Pattern {
-        matcher: (this: Pattern, node: HTMLElement | ChildNode, match: PatternMatch) => PatternMatchResponse;
+        matcher: (this: Pattern, node: Element | Node, match: PatternMatch) => PatternMatchResponse;
         match: PatternMatch;
         compounds: boolean;
         priority: number;
@@ -57,7 +62,7 @@ namespace AnnotateMD {
         transform: (match: PatternMatch) => void;
 
         constructor(
-            matcher: (this: any, node: HTMLElement | ChildNode) => PatternMatchResponse,
+            matcher: (this: any, node: Element | Node) => PatternMatchResponse,
             {
                 priority = 0,
                 compounds = true,
@@ -78,13 +83,13 @@ namespace AnnotateMD {
             this.match = null;
         }
 
-        push(node: HTMLElement | ChildNode) {
+        push(node: Element | Node) {
             if (this.match !== null) {
                 this.match.push(node);
             }
         }
 
-        matches(node: HTMLElement | ChildNode): PatternMatchResponse {
+        matches(node: Element | Node): PatternMatchResponse {
             const matched = this.matcher(node, this.match);
             if (matched == PatternMatchResponse.Matching || matched == PatternMatchResponse.Incomplete) {
                 this.push(node);
@@ -138,7 +143,7 @@ namespace AnnotateMD {
             this.field_name = field_name;
         }
 
-        static match_field(element: HTMLElement | ChildNode, field_name: string, field_options: Array<string>): PatternMatchResponse {
+        static match_field(element: Element | Node, field_name: string, field_options: Array<string>): PatternMatchResponse {
             const cname = element[field_name];
             let response = PatternMatchResponse.Matching;
             for (const c of field_options) {
@@ -236,7 +241,7 @@ namespace AnnotateMD {
             this.cur_counts = 0;
         }
 
-        match_seq(element: HTMLElement | ChildNode): PatternMatchResponse {
+        match_seq(element: Element | Node): PatternMatchResponse {
             const pattern = this.patterns[this.cur];
             let resp = pattern.matches(element);
 
@@ -299,7 +304,7 @@ namespace AnnotateMD {
             }
         }
 
-        match_all(element: HTMLElement | ChildNode): PatternMatchResponse {
+        match_all(element: Element | Node): PatternMatchResponse {
             let resp = PatternMatchResponse.Matching;
             for (const pat of this.patterns) {
                 resp = pat.matches(element);
@@ -322,7 +327,8 @@ namespace AnnotateMD {
                     {
                         priority = 1,
                         compounds = false,
-                        open_ended = false
+                        open_ended = false,
+                        transform = null
                     } = {}
         ) {
             super(
@@ -331,23 +337,22 @@ namespace AnnotateMD {
                     priority: priority,
                     compounds: compounds,
                     open_ended: open_ended,
-                    manage_match: false // the subpatterns will manage all of the matches
+                    manage_match: false, // the subpatterns will manage all of the matches for real
+                    transform: transform
                 }
             );
             this.patterns = patterns;
-            this.match = new PatternMatch(this.patterns.map(t=>t.match));
+            this.match = new PatternMatch(this, this.patterns.map(t=>t.match));
         }
 
         reset(): PatternMatch {
             const m = this.match;
-            for (const pat of this.patterns) {
-                pat.reset();
-            }
-            this.match = new PatternMatch(this.patterns.map(t=>t.match));
+            for (const pat of this.patterns) { pat.reset(); }
+            this.match = new PatternMatch(this, this.patterns.map(t=>t.match));
             return m;
         }
 
-        match_any(element: HTMLElement | ChildNode): PatternMatchResponse {
+        match_any(element: Element | Node): PatternMatchResponse {
             let resp = PatternMatchResponse.Matching;
             for (const pat of this.patterns) {
                 resp = pat.matches(element);
@@ -372,44 +377,74 @@ namespace AnnotateMD {
             this.patterns = patterns;
         }
 
-        apply(root: HTMLElement) {
+        _match_node(node: Element, matches: Set<PatternMatch>) {
+            for (let j = 0; j < this.patterns.length; j++) {
+                // we iterate like this so as to be able to discard any matches following the current one
+                // if it turns out we have a non-compounding pattern
+                const pat = this.patterns[j];
+                const resp = pat.matches(node);
+                switch (resp) {
+                    case PatternMatchResponse.NonMatching:
+                        // continue on to the next pattern, discarding any built-up state
+                        pat.reset();
+                        break;
+                    case PatternMatchResponse.Incomplete:
+                        // do nothing since the following patterns might still be relevant
+                        // but make sure to put the match in matches in case we need to discard any
+                        // _following_ matches if it turns out it matches in the end
+                        matches.add(pat.match);
+                        break;
+                    case PatternMatchResponse.Matching:
+                        // here we have to check a) if the pattern is compounding (i.e. if multiple can apply)
+                        //  --> this should be the default case unless there's some compelling reason why it can't
+                        //  work like that
+                        // then we should apply it
+                        const match = pat.match;
+                        matches.add(match);
+                        if (!pat.compounds) {
+                            // gotta drop all following state, kill any following matches, etc.
+                            const match_list = Array.from(matches.values());
+                            const match_ind = match_list.indexOf(match);
+                            for (let kill = match_ind + 1; kill < match_list.length; kill++) {
+                                const kill_match = match_list[kill];
+                                matches.delete(kill_match);
+                            }
+                        }
+                        break;
+                }
+            }
+        }
+
+        _apply_rec(root: Element, matches: Set<PatternMatch>) {
+
+            const nodes = root.children;
+            const node_count = nodes.length;
+            for (let i = 0; i < node_count; i++) {
+                const node = nodes[i];
+                this._match_node(node, matches);
+                this._apply_rec(node, matches);
+            }
+        }
+
+        apply(root: Element) {
             // we gotta walk the DOM, trying out different patterns and building our set of matches to work with
             // the basic algorithm will be to try out all of our different patterns one-by-one
 
             // We're gonna do this in a DFS type way, but given that we don't expect much-to-any nesting of our
             // node structure since it's coming from Markdown there's nothing really to worry about
 
-            const nodes = root.children;
-            const node_count = nodes.length;
-            const num_pats = this.patterns.length;
             let matches = new Set<PatternMatch>();
-            for ( let i = 0; i < node_count; i++ ) {
-                const node = nodes[i];
-                for ( let j = 0; j < node_count; j++ ) {
-                    // we iterate like this so as to
-                    const pat = this.patterns[j];
-                    const resp = pat.matches(node);
-                    switch (resp) {
-                        case PatternMatchResponse.NonMatching:
-                            // continue on to the next pattern, discarding any built-up state
-                            pat.reset();
-                            break;
-                        case PatternMatchResponse.Incomplete:
-                            // do nothing since the following patterns might still be relevant
-                            // but make sure to put the match in matches in case we need to discard any _following_ matches
-                            break;
-                        case PatternMatchResponse.Matching:
-                            // here we have to check a) if the pattern is compounding (i.e. if multiple can apply)
-                            //  --> this should be the default case unless there's some compelling reason why it can't
-                            //  work like that
-                            // then we should apply it
+            this._apply_rec(root, matches); // this populates 'matches'
 
-
-                    }
-                }
+            // now we go through and apply all of them
+            const match_iter = matches.values();
+            let match = match_iter.next();
+            while (!match.done) {
+                match.value.apply();
+                match = match_iter.next();
             }
-
         }
+
 
     }
 
