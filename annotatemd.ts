@@ -19,7 +19,7 @@ namespace AnnotateMD {
         Incomplete
     }
 
-    class PatternMatch {
+    export class PatternMatch {
         nodes: Array<Element | Node | PatternMatch>;
         complete: boolean;
         parent: Pattern;
@@ -53,7 +53,7 @@ namespace AnnotateMD {
      *
      *  I currently don't actually support anything _other_ than open_ended but that'll come some day
      */
-    class Pattern {
+    export class Pattern {
         matcher: (this: Pattern, node: Element | Node, match: PatternMatch) => PatternMatchResponse;
         match: PatternMatch;
         compounds: boolean;
@@ -116,7 +116,7 @@ namespace AnnotateMD {
     // Define a set of pattern functions that we can use
 
     // Set up patterns that operate on a field of an object
-    class SimplePattern extends Pattern {
+    export class SimplePattern extends Pattern {
         field_options: Array<string>;
         field_name: string;
 
@@ -157,13 +157,14 @@ namespace AnnotateMD {
         }
     }
 
-    class TagPattern extends SimplePattern {
+    export class TagPattern extends SimplePattern {
         constructor(tags: Array<string>,
                     {
                         priority = 0,
                         compounds = false,
                         open_ended = false,
-                        manage_match = true
+                        manage_match = true,
+                        transform = null
                     } = {}
         ) {
             super(tags, 'tagName',
@@ -171,12 +172,13 @@ namespace AnnotateMD {
                     priority: priority,
                     compounds: compounds,
                     open_ended: open_ended,
-                    manage_match: manage_match
+                    manage_match: manage_match,
+                    transform: transform
                 }
             );
         }
     }
-    class ClassPattern extends SimplePattern {
+    export class ClassPattern extends SimplePattern {
         constructor(classes: Array<string>,
                     {
                         priority = 0,
@@ -202,7 +204,7 @@ namespace AnnotateMD {
      * A SequencePattern provides support for matching a sequence of objects
      *
      */
-    class SequencePattern extends Pattern {
+    export class SequencePattern extends Pattern {
         cur: number;
         cur_counts: number;
         patterns: Array<Pattern>;
@@ -274,7 +276,7 @@ namespace AnnotateMD {
     /**
      * Provides an Intersection over the patterns, only matching if _all_ of them match
      */
-    class AllPattern extends Pattern {
+    export class AllPattern extends Pattern {
         patterns: Array<Pattern>;
 
         constructor(patterns: Array<Pattern>, repeats: Array<Array<number>> = null,
@@ -320,7 +322,7 @@ namespace AnnotateMD {
     /**
      * Provides a Union over the patterns, matching the first option
      */
-    class AnyPattern extends Pattern {
+    export class AnyPattern extends Pattern {
         patterns: Array<Pattern>;
 
         constructor(patterns: Array<Pattern>, repeats: Array<Array<number>> = null,
@@ -370,7 +372,7 @@ namespace AnnotateMD {
      * Markdown blocks
      *
      */
-    class Annotator {
+    export class Annotator {
         patterns: Array<Pattern>;
 
         constructor(patterns: Pattern[]) {
@@ -444,7 +446,6 @@ namespace AnnotateMD {
                 match = match_iter.next();
             }
         }
-
 
     }
 

@@ -3,5 +3,8 @@
     "target": "es5",
     "lib": [ "es2015", "dom", "es2017"],
     "outFile": "dist/annotateMD.js"
-    }
+    },
+  "include": [
+    "annotatemd.ts"
+  ]
 }
