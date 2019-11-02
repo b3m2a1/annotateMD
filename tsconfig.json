@@ -2,9 +2,10 @@
   "compilerOptions": {
     "target": "es5",
     "lib": [ "es2015", "dom", "es2017"],
-    "outFile": "dist/annotateMD.js"
+    "outDir": "dist"
     },
   "include": [
-    "annotatemd.ts"
+    "annotatemd.ts",
+    "annotations/simple_transforms.ts"
   ]
 }
