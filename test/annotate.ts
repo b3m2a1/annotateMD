@@ -12,31 +12,35 @@ let annotator = new AnnotateMD.Annotator(
             ],
             [ [1, 1],  [1, -1] ],
             {
-                transform: AnnotateMD.Annotations.SectionMaker({header_class: "test-3"})
-            }
-        ),
-        new AnnotateMD.TagPattern([ "ul", "pre" ], { terminal: true, all: false }),
-        new AnnotateMD.TagPattern(
-            [ "p" ],
-            {
-                transform: AnnotateMD.Annotations.ClassAdder("test")
-            }
-        ),
-        new AnnotateMD.TagPattern(
-            [ "p" ],
-            {
-                transform: AnnotateMD.Annotations.ClassAdder("test")
-            }
-        ),
-        new AnnotateMD.SequencePattern(
-            [
-                new AnnotateMD.TagPattern([ "p" , "a", "span"])
-            ],
-            [ [2, -1] ],
-            {
-                transform: AnnotateMD.Annotations.ClassAdder("test-2")
+                transform: AnnotateMD.Annotations.SectionMaker({
+                    section_class: ["card", "m-1"],
+                    header_class: "card-header",
+                    body_class: "card-body"
+                })
             }
         )
+        // new AnnotateMD.TagPattern([ "ul", "pre" ], { terminal: true, all: false }),
+        // new AnnotateMD.TagPattern(
+        //     [ "p" ],
+        //     {
+        //         transform: AnnotateMD.Annotations.ClassAdder("test")
+        //     }
+        // ),
+        // new AnnotateMD.TagPattern(
+        //     [ "p" ],
+        //     {
+        //         transform: AnnotateMD.Annotations.ClassAdder("test")
+        //     }
+        // ),
+        // new AnnotateMD.SequencePattern(
+        //     [
+        //         new AnnotateMD.TagPattern([ "p" , "a", "span"])
+        //     ],
+        //     [ [2, -1] ],
+        //     {
+        //         transform: AnnotateMD.Annotations.ClassAdder("test-2")
+        //     }
+        // )
     ]
 );
 

@@ -14,14 +14,13 @@
 
 namespace AnnotateMD {
 
-    import instantiate = WebAssembly.instantiate;
-
     enum PatternMatchResponse {
         Matching,
         NonMatching,
         Incomplete,
         Completed, // this is a subtley different case than Matching, where we matched in a prior step
         Break, // this is a subtle case where you return a flag that basically says: stop matching on this object
+        Unapplied // means for one reason or another the pattern chose not to apply itself
     }
 
     export class PatternMatch {
@@ -71,41 +70,52 @@ namespace AnnotateMD {
 
     }
 
+
+    const $DefaultDepth = 0;
+    const $DefaultPriority = 0;
+    const $DefaultAbsDepth = -1;
+
+
     /**
      * Define a really general Pattern class that we'll use for our incremental DOM matching procedure
      *
      *  I currently don't actually support anything _other_ than open_ended but that'll come some day
      */
     export class Pattern {
-        matcher: (this: Pattern, node: Element | Node, match: PatternMatch) => PatternMatchResponse; // the match method
+        matcher: (node: Element | Node, match: PatternMatch, depth: number) => PatternMatchResponse; // the match method
         match: PatternMatch; // the matched data
         compounds: boolean; // whether the pattern should allow other patterns to stack on top of it
         terminal: boolean; // whether any subsequent matching should be done on the pattern -- basically a subcase of depth?
         priority: number; // the priority of the pattern -- currently unused, may always be that way
-        depth: number; // the depth to which this pattern can apply
+        depth: number; // the degree of nesting this pattern can apply to (usually like one level?)
+        _cur_depth: number; // the current depth the pattern is matching at
+        absolute_depth: number; // the amount of nesting this pattern is willing to support
         open_ended: boolean; // whether the pattern must be closed or not -- currently unused, may always be that way
         transform: (match: PatternMatch) => void; // the transform used by the pattern on its data
 
         constructor(
-            matcher: (this: any, node: Element | Node) => PatternMatchResponse,
+            matcher: (node: Element | Node, match: PatternMatch, depth: number) => PatternMatchResponse,
             {
-                priority = 0,
+                priority = $DefaultPriority,
                 compounds = true,
                 terminal = false,
                 open_ended = true,
-                depth = -1,
+                depth = $DefaultDepth,
+                absolute_depth = $DefaultAbsDepth,
                 manage_match = true,
                 transform = null
             } = {}
         ) {
-            this.matcher = matcher.bind(this);
+            this.matcher = matcher;
             this.priority = priority;
             this.compounds = compounds;
             this.terminal = terminal;
             this.open_ended = open_ended;
             this.depth = depth;
+            this.absolute_depth = absolute_depth;
             this.match = manage_match ? new PatternMatch(this) : null;
             this.transform = transform;
+            this._cur_depth = -1;
         }
 
         disable_handling() {
@@ -118,9 +128,22 @@ namespace AnnotateMD {
             }
         }
 
-        matches(node: Element | Node): PatternMatchResponse {
-            const matched = this.matcher(node, this.match);
+        matches(node: Element | Node, depth: number): PatternMatchResponse {
+
+            // a few quick short-circuit cases for when that's applicable
+            if (this.absolute_depth >= 0 && this.absolute_depth < depth) {
+                return PatternMatchResponse.Unapplied;
+            }
+
+
+            console.log(["???", depth, this._cur_depth, this.depth]);
+            if (this._cur_depth >= 0 && this.depth >= 0 && depth - this._cur_depth > this.depth) {
+                return PatternMatchResponse.Unapplied;
+            }
+
+            const matched = this.matcher(node, this.match, depth);
             if (matched == PatternMatchResponse.Matching || matched == PatternMatchResponse.Incomplete) {
+                if (this._cur_depth === -1) { this._cur_depth = depth; }
                 this.push(node);
             }
             return matched;
@@ -128,6 +151,7 @@ namespace AnnotateMD {
 
         reset(): PatternMatch {
             const match = this.match;
+            this._cur_depth = -1;
             if (this.match !== null) {
                 this.match = new PatternMatch(this)
             }
@@ -135,8 +159,8 @@ namespace AnnotateMD {
         }
 
         apply(match: PatternMatch = null) {
-            if (this.transform !== null ) {
-                this.transform((match === null) ? this.match: match);
+            if (this.transform !== null) {
+                this.transform((match === null) ? this.match : match);
             }
         }
 
@@ -154,10 +178,12 @@ namespace AnnotateMD {
         constructor(field_options: Array<string>,
                     field_name: string,
                     {
-                        priority = 0,
+                        priority = $DefaultPriority,
                         compounds = true,
                         terminal = false,
                         open_ended = false,
+                        depth = $DefaultDepth,
+                        absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
                         transform = null,
                         exact = false,
@@ -165,12 +191,16 @@ namespace AnnotateMD {
                     } = {}
         ) {
             super(
-                (el) => SimplePattern.match_field(el, this.field_name, this.field_options, this.exact, this.all),
+                (el, match, depth) => (
+                    SimplePattern.match_field(el, this.field_name, this.field_options, this.exact, this.all, match, depth)
+                ),
                 {
                     priority: priority,
                     compounds: compounds,
                     terminal: terminal,
                     open_ended: open_ended,
+                    depth: depth,
+                    absolute_depth: absolute_depth,
                     manage_match: manage_match,
                     transform: transform
                 }
@@ -185,7 +215,9 @@ namespace AnnotateMD {
                            field_name: string,
                            field_options: Array<string>,
                            exact: boolean,
-                           all: boolean
+                           all: boolean,
+                           match: PatternMatch,
+                           depth: number
         ): PatternMatchResponse {
             const cname = element[field_name];
             let response = PatternMatchResponse.Matching;
@@ -227,22 +259,26 @@ namespace AnnotateMD {
     export class TagPattern extends SimplePattern {
         constructor(tags: Array<string>,
                     {
-                        priority = 0,
+                        priority = $DefaultPriority,
                         compounds = true,
                         terminal = false,
                         open_ended = false,
+                        depth = $DefaultDepth,
+                        absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
                         transform = null,
                         exact = true,
                         all = false
                     } = {}
         ) {
-            super(tags.map(t=>t.toUpperCase()), 'tagName',
+            super(tags.map(t => t.toUpperCase()), 'tagName',
                 {
                     priority: priority,
                     compounds: compounds,
                     terminal: terminal,
                     open_ended: open_ended,
+                    depth: depth,
+                    absolute_depth: absolute_depth,
                     manage_match: manage_match,
                     transform: transform,
                     exact: exact,
@@ -251,13 +287,16 @@ namespace AnnotateMD {
             );
         }
     }
+
     export class ClassPattern extends SimplePattern {
         constructor(classes: Array<string>,
                     {
-                        priority = 0,
+                        priority = $DefaultPriority,
                         compounds = true,
                         terminal = false,
                         open_ended = false,
+                        depth = $DefaultDepth,
+                        absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
                         transform = null,
                         exact = false,
@@ -270,6 +309,8 @@ namespace AnnotateMD {
                     compounds: compounds,
                     terminal: terminal,
                     open_ended: open_ended,
+                    depth: depth,
+                    absolute_depth: absolute_depth,
                     manage_match: manage_match,
                     transform: transform,
                     exact: exact,
@@ -295,17 +336,21 @@ namespace AnnotateMD {
                         compounds = true,
                         terminal = false,
                         open_ended = false,
+                        depth = $DefaultDepth,
+                        absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
                         transform = null
                     } = {}
         ) {
             super(
-                (el) => this.match_seq(el),
+                (el, match, depth) => this.match_seq(el, match, depth),
                 {
                     priority: priority,
                     compounds: compounds,
                     terminal: terminal,
                     open_ended: open_ended,
+                    depth: depth,
+                    absolute_depth: absolute_depth,
                     manage_match: manage_match,
                     transform: transform
                 }
@@ -334,18 +379,22 @@ namespace AnnotateMD {
             return this.cur >= this.patterns.length;
         }
 
-        match_seq(element: Element | Node): PatternMatchResponse {
-            // console.log(">>>>");
-            // console.log(this.cur);
+        match_seq(
+            element: Element | Node,
+            match: PatternMatch,
+            depth: number
+        ): PatternMatchResponse {
+            console.log(">>>>");
+            console.log(this.cur);
 
             const pattern = this.patterns[this.cur];
-            let resp = pattern.matches(element);
+            let resp = pattern.matches(element, depth);
 
             // we use these to determine whether a NonMatching means to progress to the next pattern or not
             // and to figure out if it's time to roll over to the next one
             const min_count = this.repeats[this.cur][0];
             const max_count = this.repeats[this.cur][this.repeats[this.cur].length - 1];
-            // console.log(max_count);
+            console.log([max_count, depth]);
 
             // NonMatching either means the pattern just doesn't match or that we need to check against the next element
             // in the sequence
@@ -356,7 +405,7 @@ namespace AnnotateMD {
                 if (this.exhausted()) {
                     resp = PatternMatchResponse.Completed;
                 } else {
-                    resp = this.match_seq(element);
+                    resp = this.match_seq(element, match, depth);
                 }
 
             } else if (resp === PatternMatchResponse.Matching || resp === PatternMatchResponse.Completed) {
@@ -375,9 +424,9 @@ namespace AnnotateMD {
                 }
             }
 
-            // console.log(element.tagName);
-            // console.log(resp);
-            // console.log("<<<<");
+            console.log(element.tagName);
+            console.log(resp);
+            console.log("<<<<");
             return resp;
         }
     }
@@ -394,17 +443,21 @@ namespace AnnotateMD {
                         compounds = true,
                         terminal = true,
                         open_ended = false,
+                        depth = $DefaultDepth,
+                        absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
                         transform = null
                     } = {}
         ) {
             super(
-                (el) => (IgnoredPattern.match_ignore(el, this.pattern)),
+                (el, match, depth) => (IgnoredPattern.match_ignore(el, this.pattern)),
                 {
                     priority: priority,
                     compounds: compounds,
                     terminal: terminal,
                     open_ended: open_ended,
+                    depth: depth,
+                    absolute_depth: absolute_depth,
                     manage_match: manage_match,
                     transform: transform
                 }
@@ -440,17 +493,21 @@ namespace AnnotateMD {
                         compounds = true,
                         terminal = false,
                         open_ended = false,
+                        depth = $DefaultDepth,
+                        absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
                         transform = null
                     } = {}
         ) {
             super(
-                (el) => this.match_all(el),
+                (el, match, depth) => this.match_all(el, match, depth),
                 {
                     priority: priority,
                     compounds: compounds,
                     terminal: terminal,
                     open_ended: open_ended,
+                    depth: depth,
+                    absolute_depth: absolute_depth,
                     manage_match: manage_match,
                     transform: transform
                 }
@@ -463,10 +520,10 @@ namespace AnnotateMD {
             }
         }
 
-        match_all(element: Element | Node): PatternMatchResponse {
+        match_all(element: Element | Node, match: PatternMatch, depth: number): PatternMatchResponse {
             let resp = PatternMatchResponse.Matching;
             for (const pat of this.patterns) {
-                resp = pat.matches(element);
+                resp = pat.matches(element, depth);
                 if (resp !== PatternMatchResponse.Matching) {
                     break
                 }
@@ -492,7 +549,7 @@ namespace AnnotateMD {
                     } = {}
         ) {
             super(
-                (el) => this.match_any(el),
+                (el, match, depth) => this.match_any(el, match, depth),
                 {
                     priority: priority,
                     compounds: compounds,
@@ -503,21 +560,23 @@ namespace AnnotateMD {
                 }
             );
             this.patterns = patterns;
-            this.match = new PatternMatch(this, this.patterns.map(t=>t.match));
+            this.match = new PatternMatch(this, this.patterns.map(t => t.match));
         }
 
         reset(): PatternMatch {
             const m = this.match;
-            for (const pat of this.patterns) { pat.reset(); }
-            this.match = new PatternMatch(this, this.patterns.map(t=>t.match));
+            for (const pat of this.patterns) {
+                pat.reset();
+            }
+            this.match = new PatternMatch(this, this.patterns.map(t => t.match));
             return m;
         }
 
-        match_any(element: Element | Node): PatternMatchResponse {
+        match_any(element: Element | Node, match: PatternMatch, depth: number): PatternMatchResponse {
             let resp = PatternMatchResponse.Matching;
             for (const pat of this.patterns) {
-                resp = pat.matches(element);
-                if (resp !== PatternMatchResponse.NonMatching) {
+                resp = pat.matches(element, depth);
+                if (resp !== PatternMatchResponse.NonMatching && resp !== PatternMatchResponse.Unapplied) {
                     break
                 }
             }
@@ -533,7 +592,6 @@ namespace AnnotateMD {
         musnt_match: Pattern;
         must_match: Pattern;
 
-
         constructor(pattern: Pattern | Array<Pattern>,
                     {
                         priority = 1,
@@ -544,7 +602,7 @@ namespace AnnotateMD {
                     } = {}
         ) {
             super(
-                (el) => this.match_execpt(el, this.musnt_match, this.must_match),
+                (el, match, depth) => this.match_execpt(el, this.musnt_match, this.must_match, match, depth),
                 {
                     priority: priority,
                     compounds: compounds,
@@ -554,19 +612,24 @@ namespace AnnotateMD {
                     transform: transform
                 }
             );
-            this.musnt_match =( (pattern instanceof Pattern) ? pattern : pattern[0] );
+            this.musnt_match = ((pattern instanceof Pattern) ? pattern : pattern[0]);
             this.musnt_match.disable_handling();
-            this.must_match =( (pattern instanceof Pattern) ? null : pattern[1] );
+            this.must_match = ((pattern instanceof Pattern) ? null : pattern[1]);
             if (this.must_match instanceof Pattern) {
 
             }
         }
 
-        match_execpt(element: Element | Node, musnt: Pattern, must: Pattern = null): PatternMatchResponse {
-            let resp = musnt.matches(element);
+        match_execpt(element: Element | Node,
+                     musnt: Pattern,
+                     must: Pattern,
+                     match: PatternMatch,
+                     depth: number
+                     ): PatternMatchResponse {
+            let resp = musnt.matches(element, depth);
             if (resp === PatternMatchResponse.Matching || resp === PatternMatchResponse.Completed) {
                 resp = PatternMatchResponse.NonMatching;
-            } else if (resp === PatternMatchResponse.NonMatching ) {
+            } else if (resp === PatternMatchResponse.NonMatching) {
                 resp = PatternMatchResponse.Matching;
             }
 
@@ -596,8 +659,6 @@ namespace AnnotateMD {
         constructor(patterns: Pattern[]) {
             this.patterns = patterns;
         }
-
-
 
         _handle_match(
             core_response: PatternMatchResponse,
@@ -652,14 +713,14 @@ namespace AnnotateMD {
             return new HandleMatchResponse(resp, break_flag);
         }
 
-        _match_node(node: Element, matches: Set<PatternMatch>): PatternMatchResponse {
+        _match_node(node: Element, matches: Set<PatternMatch>, depth: number): PatternMatchResponse {
             let resp = PatternMatchResponse.Matching;
             let break_flag = false;
             for (let j = 0; j < this.patterns.length; j++) {
                 // we iterate like this so as to be able to discard any matches following the current one
                 // if it turns out we have a non-compounding pattern
                 const pat = this.patterns[j];
-                resp = pat.matches(node);
+                resp = pat.matches(node, depth);
                 let handle_resp = this._handle_match(resp, pat, matches, pat.match);
                 break_flag = handle_resp.break_flag;
                 if (handle_resp.resp === PatternMatchResponse.Completed) {
@@ -667,7 +728,7 @@ namespace AnnotateMD {
                     // this is because we basically did a look-ahead, found that our pattern doesn't match
                     // so we handled the match that we'd been building up, but now we need to go back and see if this
                     // new thing matches
-                    resp = pat.matches(node);
+                    resp = pat.matches(node, depth);
                     handle_resp = this._handle_match(resp, pat, matches, pat.match);
                     break_flag = break_flag || handle_resp.break_flag; // need to update this now...
                 }
@@ -686,7 +747,7 @@ namespace AnnotateMD {
             if (max_depth <= 0 || cur_depth <= max_depth) {
                 for (let i = 0; i < node_count; i++) {
                     const node = nodes[i];
-                    const resp = this._match_node(node, matches);
+                    const resp = this._match_node(node, matches, cur_depth);
                     if (resp !== PatternMatchResponse.Break) {
                         this._apply_rec(node, matches, max_depth, cur_depth + 1);
                     }
