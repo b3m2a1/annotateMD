@@ -384,8 +384,8 @@ namespace AnnotateMD {
             match: PatternMatch,
             depth: number
         ): PatternMatchResponse {
-            console.log(">>>>");
-            console.log(this.cur);
+            // console.log(">>>>");
+            // console.log(this.cur);
 
             const pattern = this.patterns[this.cur];
             let resp = pattern.matches(element, depth);
@@ -394,7 +394,7 @@ namespace AnnotateMD {
             // and to figure out if it's time to roll over to the next one
             const min_count = this.repeats[this.cur][0];
             const max_count = this.repeats[this.cur][this.repeats[this.cur].length - 1];
-            console.log([max_count, depth]);
+            // console.log([max_count, depth]);
 
             // NonMatching either means the pattern just doesn't match or that we need to check against the next element
             // in the sequence
@@ -424,9 +424,9 @@ namespace AnnotateMD {
                 }
             }
 
-            console.log(element.tagName);
-            console.log(resp);
-            console.log("<<<<");
+            // console.log(element.tagName);
+            // console.log(resp);
+            // console.log("<<<<");
             return resp;
         }
     }
