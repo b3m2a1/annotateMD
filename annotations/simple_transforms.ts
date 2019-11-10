@@ -5,7 +5,7 @@ namespace AnnotateMD.Annotations {
 
     // We'll define a bunch of annotations helpers that will make it possible to do _common_ types of annotations
     // on our system
-    export function ClassAdder(addClass: string): ((match: PatternMatch) => void) {
+    export function ClassAdder(addClass: string): ((match: PatternMatch | Element | Node) => void) {
 
         function add_classes(match: PatternMatch) {
             match.nodes.forEach(m => add_class(m));
@@ -23,7 +23,7 @@ namespace AnnotateMD.Annotations {
         return add_classes;
     }
 
-    export function IDSetter(addID: string): ((match: PatternMatch) => void) {
+    export function IDSetter(addID: string): ((match: PatternMatch | Element | Node) => void) {
 
         function add_ids(match: PatternMatch) {
             match.nodes.forEach(m => add_id(m));
@@ -47,7 +47,8 @@ namespace AnnotateMD.Annotations {
             header_class = null as string | string[],
             body_class = null as string | string[],
             collapsible = true,
-            collapsed = false
+            collapsed = false,
+            header_elements = 1
         } = {}
     ): ((match: PatternMatch) => void) {
         // set up something that will make a Section out of the data,
@@ -108,14 +109,18 @@ namespace AnnotateMD.Annotations {
             // we can do any of the collapse behavior now if we want...
             parent.replaceChild(section_node, first_node);
             head_node.appendChild(first_node);
-            for (let i = 1; i < nodes.length; i++) {
+            for (let i = 1; i < header_elements; i++) {
+                const n = nodes[i];
+                head_node.appendChild(n);
+                // parent.removeChild(n);
+            }
+            for (let i = header_elements; i < nodes.length; i++) {
                 const n = nodes[i];
                 body_node.appendChild(n);
                 // parent.removeChild(n);
             }
 
         }
-
 
         return make_groups;
     }
