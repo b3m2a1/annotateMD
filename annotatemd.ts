@@ -81,7 +81,6 @@ namespace AnnotateMD {
     const $DefaultAbsDepth = -1;
     const $DefaultApplications = -1;
 
-
     /**
      * Define a really general Pattern class that we'll use for our incremental DOM matching procedure
      *
@@ -100,6 +99,7 @@ namespace AnnotateMD {
         transform: (match: PatternMatch) => void; // the transform used by the pattern on its data
         applications: number; // the number of matches supported
         _applied: number; // the number of times the pattern has already applied
+        enabled: boolean; // whether the pattern is active for matching or not
 
         constructor(
             matcher: (node: Element | Node, match: PatternMatch, depth: number) => PatternMatchResponse,
@@ -127,6 +127,15 @@ namespace AnnotateMD {
             this.applications = applications;
             this._cur_depth = -1;
             this._applied = 0;
+            this.enabled = true;
+        }
+
+        disable() {
+            this.enabled = false;
+        }
+
+        enable() {
+            this.enabled = true;
         }
 
         disable_handling() {
@@ -142,6 +151,9 @@ namespace AnnotateMD {
         matches(node: Element | Node, depth: number): PatternMatchResponse {
 
             // a few quick short-circuit cases for when that's applicable
+            if (!this.enabled) {
+                return PatternMatchResponse.Unapplied;
+            }
             if (this.absolute_depth >= 0 && this.absolute_depth < depth) {
                 return PatternMatchResponse.Unapplied;
             }

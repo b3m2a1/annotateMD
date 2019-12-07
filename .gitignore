@@ -44,3 +44,5 @@ dist/*
 test/*
 
 package-lock.json
+
+.DS_Store
