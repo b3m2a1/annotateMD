@@ -48,7 +48,8 @@ namespace AnnotateMD.Annotations {
             body_class = null as string | string[],
             collapsible = true,
             collapsed = false,
-            header_elements = 1
+            header_elements = 1,
+            remove_empty = false
         } = {}
     ): ((match: PatternMatch) => void) {
         // set up something that will make a Section out of the data,
@@ -57,67 +58,72 @@ namespace AnnotateMD.Annotations {
         function make_groups(match: PatternMatch) {
 
             const nodes = match.getNodeList({recurse: false});
-            const first_node = nodes[0];
-            const parent = first_node.parentNode;
-            const section_node = document.createElement("div");
-            if (typeof section_class === "string") {
-                section_node.classList.add(section_class);
-            } else if (section_class !== null) {
-                section_class.forEach(c => section_node.classList.add(c))
-            }
-            const head_node = document.createElement("div");
-            if (typeof header_class === "string") {
-                head_node.classList.add(header_class);
-            } else if (header_class !== null) {
-                header_class.forEach(c => head_node.classList.add(c))
-            }
-            const body_node = document.createElement("div");
-            if (typeof body_class === "string") {
-                body_node.classList.add(body_class);
-            } else if (body_class !== null) {
-                body_class.forEach(c => body_node.classList.add(c))
-            }
-            section_node.appendChild(head_node);
-
-            if (collapsible) {
-                const id = Math.random().toString(36).substring(2, 15);
-
-                const header_collapse = {
-                    "data-toggle": "collapse",
-                    "data-target":"#collapsible-"+id,
-                    "aria-expanded":(collapsed) ? "false": "true",
-                    "aria-controls":"collapseExample"
-                };
-
-                for (const k in header_collapse) {
-                    head_node.setAttribute(k, header_collapse[k]);
-                }
-
-                const collapse_node = document.createElement("div");
-                collapse_node.classList.add("collapse");
-                if (!collapsed) {
-                    collapse_node.classList.add("show");
-                }
-                collapse_node.setAttribute("id", "collapsible-"+id);
-                collapse_node.appendChild(body_node);
-                section_node.appendChild(collapse_node);
-
+            if (remove_empty && nodes.length == 1) {
+                const first_node = nodes[0];
+                first_node.parentNode.removeChild(first_node);
             } else {
-                section_node.appendChild(body_node);
-            }
+                const first_node = nodes[0];
+                const parent = first_node.parentNode;
+                const section_node = document.createElement("div");
+                if (typeof section_class === "string") {
+                    section_node.classList.add(section_class);
+                } else if (section_class !== null) {
+                    section_class.forEach(c => section_node.classList.add(c))
+                }
+                const head_node = document.createElement("div");
+                if (typeof header_class === "string") {
+                    head_node.classList.add(header_class);
+                } else if (header_class !== null) {
+                    header_class.forEach(c => head_node.classList.add(c))
+                }
+                const body_node = document.createElement("div");
+                if (typeof body_class === "string") {
+                    body_node.classList.add(body_class);
+                } else if (body_class !== null) {
+                    body_class.forEach(c => body_node.classList.add(c))
+                }
+                section_node.appendChild(head_node);
 
-            // we can do any of the collapse behavior now if we want...
-            parent.replaceChild(section_node, first_node);
-            head_node.appendChild(first_node);
-            for (let i = 1; i < header_elements; i++) {
-                const n = nodes[i];
-                head_node.appendChild(n);
-                // parent.removeChild(n);
-            }
-            for (let i = header_elements; i < nodes.length; i++) {
-                const n = nodes[i];
-                body_node.appendChild(n);
-                // parent.removeChild(n);
+                if (collapsible) {
+                    const id = Math.random().toString(36).substring(2, 15);
+
+                    const header_collapse = {
+                        "data-toggle": "collapse",
+                        "data-target": "#collapsible-" + id,
+                        "aria-expanded": (collapsed) ? "false" : "true",
+                        "aria-controls": "collapseExample"
+                    };
+
+                    for (const k in header_collapse) {
+                        head_node.setAttribute(k, header_collapse[k]);
+                    }
+
+                    const collapse_node = document.createElement("div");
+                    collapse_node.classList.add("collapse");
+                    if (!collapsed) {
+                        collapse_node.classList.add("show");
+                    }
+                    collapse_node.setAttribute("id", "collapsible-" + id);
+                    collapse_node.appendChild(body_node);
+                    section_node.appendChild(collapse_node);
+
+                } else {
+                    section_node.appendChild(body_node);
+                }
+
+                // we can do any of the collapse behavior now if we want...
+                parent.replaceChild(section_node, first_node);
+                head_node.appendChild(first_node);
+                for (let i = 1; i < header_elements; i++) {
+                    const n = nodes[i];
+                    head_node.appendChild(n);
+                    // parent.removeChild(n);
+                }
+                for (let i = header_elements; i < nodes.length; i++) {
+                    const n = nodes[i];
+                    body_node.appendChild(n);
+                    // parent.removeChild(n);
+                }
             }
 
         }

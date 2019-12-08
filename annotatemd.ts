@@ -96,10 +96,11 @@ namespace AnnotateMD {
         _cur_depth: number; // the current depth the pattern is matching at
         absolute_depth: number; // the amount of nesting this pattern is willing to support
         open_ended: boolean; // whether the pattern must be closed or not -- currently unused, may always be that way
-        transform: (match: PatternMatch) => void; // the transform used by the pattern on its data
         applications: number; // the number of matches supported
         _applied: number; // the number of times the pattern has already applied
         enabled: boolean; // whether the pattern is active for matching or not
+        transform: (match: PatternMatch) => void; // the transform used by the pattern on its data
+        apply_immediately: boolean; // whether to immediately apply the transform or not
 
         constructor(
             matcher: (node: Element | Node, match: PatternMatch, depth: number) => PatternMatchResponse,
@@ -112,7 +113,9 @@ namespace AnnotateMD {
                 absolute_depth = $DefaultAbsDepth,
                 manage_match = true,
                 transform = null,
-                applications = $DefaultApplications
+                apply_immediately = false,
+                applications = $DefaultApplications,
+                enabled = true
             } = {}
         ) {
             this.matcher = matcher;
@@ -127,7 +130,8 @@ namespace AnnotateMD {
             this.applications = applications;
             this._cur_depth = -1;
             this._applied = 0;
-            this.enabled = true;
+            this.enabled = enabled;
+            this.apply_immediately = apply_immediately;
         }
 
         disable() {
@@ -215,6 +219,7 @@ namespace AnnotateMD {
                         absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
                         transform = null,
+                        apply_immediately = false,
                         applications = $DefaultApplications,
                         exact = false,
                         all = false
@@ -233,6 +238,7 @@ namespace AnnotateMD {
                     absolute_depth: absolute_depth,
                     manage_match: manage_match,
                     transform: transform,
+                    apply_immediately: apply_immediately,
                     applications: applications
                 }
             );
@@ -298,6 +304,7 @@ namespace AnnotateMD {
                         absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
                         transform = null,
+                        apply_immediately = false,
                         applications = $DefaultApplications,
                         exact = true,
                         all = false
@@ -313,6 +320,7 @@ namespace AnnotateMD {
                     absolute_depth: absolute_depth,
                     manage_match: manage_match,
                     transform: transform,
+                    apply_immediately: apply_immediately,
                     applications: applications,
                     exact: exact,
                     all: all
@@ -332,6 +340,7 @@ namespace AnnotateMD {
                         absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
                         transform = null,
+                        apply_immediately = false,
                         applications = $DefaultApplications,
                         exact = false,
                         all = true
@@ -347,6 +356,7 @@ namespace AnnotateMD {
                     absolute_depth: absolute_depth,
                     manage_match: manage_match,
                     transform: transform,
+                    apply_immediately: apply_immediately,
                     applications: applications,
                     exact: exact,
                     all: all
@@ -375,6 +385,7 @@ namespace AnnotateMD {
                         absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
                         transform = null,
+                        apply_immediately = false,
                         applications = $DefaultApplications
                     } = {}
         ) {
@@ -389,6 +400,7 @@ namespace AnnotateMD {
                     absolute_depth: absolute_depth,
                     manage_match: manage_match,
                     transform: transform,
+                    apply_immediately: apply_immediately,
                     applications: applications
                 }
             );
@@ -484,6 +496,7 @@ namespace AnnotateMD {
                         absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
                         transform = null,
+                        apply_immediately = false,
                         applications = $DefaultApplications
                     } = {}
         ) {
@@ -498,6 +511,7 @@ namespace AnnotateMD {
                     absolute_depth: absolute_depth,
                     manage_match: manage_match,
                     transform: transform,
+                    apply_immediately: apply_immediately,
                     applications: applications
                 }
             );
@@ -536,6 +550,7 @@ namespace AnnotateMD {
                         absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
                         transform = null,
+                        apply_immediately = false,
                         applications = $DefaultApplications
                     } = {}
         ) {
@@ -550,6 +565,7 @@ namespace AnnotateMD {
                     absolute_depth: absolute_depth,
                     manage_match: manage_match,
                     transform: transform,
+                    apply_immediately: apply_immediately,
                     applications: applications
                 }
             );
@@ -587,6 +603,7 @@ namespace AnnotateMD {
                         terminal = false,
                         open_ended = false,
                         transform = null,
+                        apply_immediately = false,
                         applications = $DefaultApplications
                     } = {}
         ) {
@@ -599,6 +616,7 @@ namespace AnnotateMD {
                     open_ended: open_ended,
                     manage_match: false, // the subpatterns will manage all of the matches for real
                     transform: transform,
+                    apply_immediately: apply_immediately,
                     applications: applications
                 }
             );
@@ -642,6 +660,7 @@ namespace AnnotateMD {
                         terminal = false,
                         open_ended = false,
                         transform = null,
+                        apply_immediately = false,
                         applications = $DefaultApplications
                     } = {}
         ) {
@@ -654,6 +673,7 @@ namespace AnnotateMD {
                     open_ended: open_ended,
                     manage_match: false, // the subpatterns will manage all of the matches for real
                     transform: transform,
+                    apply_immediately: apply_immediately,
                     applications: applications
                 }
             );
@@ -694,6 +714,7 @@ namespace AnnotateMD {
                         open_ended = false,
                         manage_match = true,
                         transform = null,
+                        apply_immediately = false,
                         applications = $DefaultApplications
                     } = {}
         ) {
@@ -706,6 +727,7 @@ namespace AnnotateMD {
                     open_ended: open_ended,
                     manage_match: manage_match,
                     transform: transform,
+                    apply_immediately: apply_immediately,
                     applications: applications
                 }
             );
@@ -782,7 +804,11 @@ namespace AnnotateMD {
                     //  --> this should be the default case unless there's some compelling reason why it can't
                     //  work like that
                     // then we should apply it
-                    matches.add(match);
+                    if (pat.apply_immediately) {
+                        match.apply()
+                    } else {
+                        matches.add(match);
+                    }
                     if (!pat.compounds) {
                         // gotta drop all following state, kill any following matches, etc.
                         const match_list = Array.from(matches.values());
