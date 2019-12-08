@@ -64,7 +64,7 @@ namespace AnnotateMD {
             this.complete = true;
         }
 
-        slice(start: number, end: number): PatternMatch  {
+        slice(start: number, end: number): PatternMatch {
             let new_match = Object.assign(Object.create(Object.getPrototypeOf(this)), this);
             new_match.nodes = new_match.nodes.slice(start, end);
             return new_match
@@ -167,8 +167,12 @@ namespace AnnotateMD {
 
             const matched = this.matcher(node, this.match, depth);
             if (matched == PatternMatchResponse.Matching || matched == PatternMatchResponse.Incomplete) {
-                if (this._cur_depth === -1) { this._cur_depth = depth; }
-                if (matched == PatternMatchResponse.Matching) { this._applied += 1; }
+                if (this._cur_depth === -1) {
+                    this._cur_depth = depth;
+                }
+                if (matched == PatternMatchResponse.Matching) {
+                    this._applied += 1;
+                }
                 this.push(node);
             }
             return matched;
@@ -293,8 +297,8 @@ namespace AnnotateMD {
                         depth = $DefaultDepth,
                         absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
-                transform = null,
-                applications = $DefaultApplications,
+                        transform = null,
+                        applications = $DefaultApplications,
                         exact = true,
                         all = false
                     } = {}
@@ -327,8 +331,8 @@ namespace AnnotateMD {
                         depth = $DefaultDepth,
                         absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
-                transform = null,
-                applications = $DefaultApplications,
+                        transform = null,
+                        applications = $DefaultApplications,
                         exact = false,
                         all = true
                     } = {}
@@ -370,8 +374,8 @@ namespace AnnotateMD {
                         depth = $DefaultDepth,
                         absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
-                transform = null,
-                applications = $DefaultApplications
+                        transform = null,
+                        applications = $DefaultApplications
                     } = {}
         ) {
             super(
@@ -479,8 +483,8 @@ namespace AnnotateMD {
                         depth = $DefaultDepth,
                         absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
-                transform = null,
-                applications = $DefaultApplications
+                        transform = null,
+                        applications = $DefaultApplications
                     } = {}
         ) {
             super(
@@ -531,8 +535,8 @@ namespace AnnotateMD {
                         depth = $DefaultDepth,
                         absolute_depth = $DefaultAbsDepth,
                         manage_match = true,
-                transform = null,
-                applications = $DefaultApplications
+                        transform = null,
+                        applications = $DefaultApplications
                     } = {}
         ) {
             super(
@@ -582,8 +586,8 @@ namespace AnnotateMD {
                         compounds = true,
                         terminal = false,
                         open_ended = false,
-                transform = null,
-                applications = $DefaultApplications
+                        transform = null,
+                        applications = $DefaultApplications
                     } = {}
         ) {
             super(
@@ -637,8 +641,8 @@ namespace AnnotateMD {
                         compounds = true,
                         terminal = false,
                         open_ended = false,
-                transform = null,
-                applications = $DefaultApplications
+                        transform = null,
+                        applications = $DefaultApplications
                     } = {}
         ) {
             super(
@@ -666,7 +670,7 @@ namespace AnnotateMD {
                      must: Pattern,
                      match: PatternMatch,
                      depth: number
-                     ): PatternMatchResponse {
+        ): PatternMatchResponse {
             let resp = musnt.matches(element, depth);
             if (resp === PatternMatchResponse.Matching || resp === PatternMatchResponse.Completed) {
                 resp = PatternMatchResponse.NonMatching;
@@ -680,16 +684,17 @@ namespace AnnotateMD {
 
     export class PatternTest extends Pattern {
         must_match: Pattern;
-        test: (element: Element | Node ) => boolean;
+        test: (element: Element | Node) => boolean;
 
-        constructor(pattern: Pattern, test: (element: Element | Node ) => boolean,
+        constructor(pattern: Pattern, test: (element: Element | Node) => boolean,
                     {
                         priority = 1,
                         compounds = true,
                         terminal = false,
                         open_ended = false,
-                transform = null,
-                applications = $DefaultApplications
+                        manage_match = true,
+                        transform = null,
+                        applications = $DefaultApplications
                     } = {}
         ) {
             super(
@@ -699,22 +704,24 @@ namespace AnnotateMD {
                     compounds: compounds,
                     terminal: terminal,
                     open_ended: open_ended,
-                    manage_match: false, // the subpatterns will manage all of the matches for real
+                    manage_match: manage_match,
                     transform: transform,
                     applications: applications
                 }
             );
-            this.must_match = ((pattern instanceof Pattern) ? null : pattern[1]);
-            if (this.must_match instanceof Pattern) { this.must_match.disable_handling() };
+            this.must_match = ((pattern instanceof Pattern) ? pattern : pattern[1]);
+            if (this.must_match instanceof Pattern) {
+                this.must_match.disable_handling();
+            }
             this.test = test;
         }
 
         match_test(element: Element | Node,
-                     must: Pattern,
-                     test: (element: Element | Node ) => boolean,
-                     match: PatternMatch,
-                     depth: number
-                     ): PatternMatchResponse {
+                   must: Pattern,
+                   test: (element: Element | Node) => boolean,
+                   match: PatternMatch,
+                   depth: number
+        ): PatternMatchResponse {
             let resp = must.matches(element, depth);
             if (resp === PatternMatchResponse.Matching || resp === PatternMatchResponse.Completed) {
                 let subresp = test(element);
